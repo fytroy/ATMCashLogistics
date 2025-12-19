@@ -4,66 +4,79 @@ from faker import Faker
 import time
 
 # --- CONFIGURATION ---
-SERVER = r'ROYSHP\FYT'
+SERVER = r'ROYSHP\FYT' 
 DATABASE = 'ATMLogisticsDB'
 DRIVER = '{ODBC Driver 17 for SQL Server}'
-
-# Center Point (Nairobi, Kenya) - Change this if you want another city
 BASE_LAT = -1.286389
 BASE_LON = 36.817223
 
 fake = Faker()
 
 def get_db_connection():
-    return pyodbc.connect(f'DRIVER={DRIVER};SERVER={SERVER};DATABASE={DATABASE};Trusted_Connection=yes;')
+    try:
+        return pyodbc.connect(f'DRIVER={DRIVER};SERVER={SERVER};DATABASE={DATABASE};Trusted_Connection=yes;')
+    except Exception as e:
+        print(f"❌ Connection Error: {e}")
+        return None
 
 def generate_atm_fleet():
-    print("--- 🏧 Generating ATM Fleet Data ---")
     conn = get_db_connection()
+    if not conn: return
     cursor = conn.cursor()
     
-    # Clear old data to start fresh
-    cursor.execute("DELETE FROM Live_Cash_Inventory")
-    cursor.execute("DELETE FROM Ref_ATM_Locations")
+    print("\n--- 🔄 Resetting Fleet Data... ---")
     
-    # Generate 50 ATMs
+    # 1. Clear old data 
+    # (In a real app, we would UPDATE, but for this demo, recreating is cleaner for the visual)
+    try:
+        cursor.execute("DELETE FROM Live_Cash_Inventory")
+        cursor.execute("DELETE FROM Ref_ATM_Locations")
+    except Exception as e:
+        print(f"⚠️ Warning cleaning tables: {e}")
+
+    # 2. Generate 50 ATMs with NEW Random Values
     for i in range(1, 51):
         atm_id = 1000 + i
-        # Create a name like "Westlands Mall Branch" or "Mombasa Rd Drive-Thru"
-        atm_name = f"{fake.street_name()} {random.choice(['Branch', 'Mall', 'Drive-Thru', 'Lobby'])}"
+        # We keep the names mostly consistent for realism, or generate new ones
+        atm_name = f"Branch {atm_id} - {random.choice(['CBD', 'West', 'East', 'North'])}"
         
-        # Generate random GPS nearby (Spread out by ~0.1 degrees)
-        lat = BASE_LAT + random.uniform(-0.1, 0.1)
-        lon = BASE_LON + random.uniform(-0.1, 0.1)
+        # Jitter the GPS slightly so dots "move" or just stay fixed? 
+        # Let's keep GPS fixed relative to base to avoid chaos, but vary cash wildly.
+        lat = BASE_LAT + random.uniform(-0.08, 0.08)
+        lon = BASE_LON + random.uniform(-0.08, 0.08)
         
-        region = random.choice(['North District', 'South District', 'CBD', 'Westlands'])
-        max_cap = 5000000 # 5 Million currency units
+        region = random.choice(['North', 'South', 'CBD', 'West'])
+        max_cap = 5000000 
         
-        # Insert Master Data
         cursor.execute(f"""
             INSERT INTO Ref_ATM_Locations (ATMID, ATMName, Region, Latitude, Longitude, MaxCapacity)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (atm_id, atm_name, region, lat, lon, max_cap))
         
-        # Generate Initial Cash Balance (Random)
-        current_bal = random.uniform(200000, 5000000) # Between 200k and 5M
+        # --- THE IMPORTANT PART: RANDOM CASH LEVELS ---
+        # This ensures every loop looks different
+        current_bal = random.uniform(50000, 5000000) 
         percentage = (current_bal / max_cap) * 100
         
         status = 'Online'
-        if percentage < 10: status = 'Critical'
-        elif percentage < 30: status = 'Low Cash'
+        if percentage < 20: status = 'Critical'
+        elif percentage < 40: status = 'Low Cash'
         
-        # Insert Live Inventory
         cursor.execute(f"""
             INSERT INTO Live_Cash_Inventory (ATMID, CurrentBalance, CashLevelPercentage, Status)
             VALUES (?, ?, ?, ?)
         """, (atm_id, current_bal, percentage, status))
-        
-        print(f"📍 Installed ATM {atm_id}: {atm_name} at [{lat:.4f}, {lon:.4f}]")
 
     conn.commit()
     conn.close()
-    print("--- ✅ Fleet Deployment Complete ---")
+    print("--- ✅ Fleet Updated (Waiting 10s...) ---")
 
+# --- MAIN LOOP ---
 if __name__ == "__main__":
-    generate_atm_fleet()
+    print("Starting Live ATM Simulator... (Press Ctrl+C to Stop)")
+    try:
+        while True:
+            generate_atm_fleet()
+            time.sleep(300) # Updates every 5 minutes
+    except KeyboardInterrupt:
+        print("Simulator Stopped.")
