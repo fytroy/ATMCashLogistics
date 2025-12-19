@@ -1,5 +1,7 @@
  🗺️ ATM Logistics Command Center (Geospatial BI)
 
+ ![ATM Logistics Dashboard](ATMLogistics.png)
+
 ![Python](https://img.shields.io/badge/Python-Faker-blue) ![SQL Server](https://img.shields.io/badge/SQL-Geospatial-red) ![Power BI](https://img.shields.io/badge/Power%20BI-Maps-yellow)
 
  Executive Summary
